@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Distribuciones de Probabilidad</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 20px;
+            background-color: #f5f6fa;
+            color: #2f3640;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        select, input[type="range"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+        .slider-group { margin-bottom: 15px; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📊 Manipulador de Distribuciones de Probabilidad</h2>
+    
+    <div class="control-panel">
+        <div>
+            <label for="distSelect">Selecciona la Distribución:</label>
+            <select id="distSelect" onchange="cambiarDistribucion()">
+                <option value="normal">Normal (Gaussiana)</option>
+                <option value="uniforme">Uniforme Continua</option>
+                <option value="binomial">Binomial</option>
+                <option value="bernoulli">Bernoulli</option>
+            </select>
+        </div>
+        
+        <div id="parameters">
+            <div class="slider-group" id="param1-group">
+                <label id="lbl-param1">Media (μ): <span id="val-param1">0</span></label>
+                <input type="range" id="param1" min="-10" max="10" step="0.1" value="0" oninput="actualizarGrafica()">
+            </div>
+            <div class="slider-group" id="param2-group">
+                <label id="lbl-param2">Desviación Estándar (σ): <span id="val-param2">1</span></label>
+                <input type="range" id="param2" min="0.1" max="5" step="0.1" value="1" oninput="actualizarGrafica()">
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="canvasDistribucion"></canvas>
+    </div>
+</div>
+
+<script>
+    let miGrafica;
+    const ctx = document.getElementById('canvasDistribucion').getContext('2d');
+
+    // Inicializar gráfica vacía
+    function inicializarGrafica(tipo, labels, datos) {
+        if (miGrafica) miGrafica.destroy();
+        miGrafica = new Chart(ctx, {
+            type: tipo,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Probabilidad / Densidad',
+                    data: datos,
+                    borderColor: '#341f97',
+                    backgroundColor: tipo === 'bar' ? 'rgba(52, 31, 151, 0.6)' : 'rgba(52, 31, 151, 0.1)',
+                    borderWidth: 2,
+                    fill: tipo === 'line'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // Cambiar los textos y rangos de los sliders según la distribución elegida
+    function cambiarDistribucion() {
+        const dist = document.getElementById('distSelect').value;
+        const p1 = document.getElementById('param1');
+        const p2 = document.getElementById('param2');
+        const g2 = document.getElementById('param2-group');
+
+        if (dist === 'normal') {
+            configurarSlider(p1, -10, 10, 0, 0.1, "Media (μ):");
+            g2.style.display = 'block';
+            configurarSlider(p2, 0.1, 5, 1, 0.1, "Desviación Estándar (σ):");
+        } else if (dist === 'uniforme') {
+            configurarSlider(p1, -5, 5, 0, 0.1, "Mínimo (a):");
+            g2.style.display = 'block';
+            configurarSlider(p2, 5, 15, 10, 0.1, "Máximo (b):");
+        } else if (dist === 'binomial') {
+            configurarSlider(p1, 1, 50, 20, 1, "Ensayos (n):");
+            g2.style.display = 'block';
+            configurarSlider(p2, 0, 1, 0.5, 0.05, "Éxito (p):");
+        } else if (dist === 'bernoulli') {
+            configurarSlider(p1, 0, 1, 0.5, 0.05, "Probabilidad (p):");
+            g2.style.display = 'none'; // Bernoulli solo ocupa un parámetro
+        }
+        actualizarGrafica();
+    }
+
+    function configurarSlider(el, min, max, val, step, texto) {
+        el.min = min; el.max = max; el.value = val; el.step = step;
+    }
+
+    // Factorial para la Binomial
+    function factorial(n) {
+        if (n === 0 || n === 1) return 1;
+        let r = 1; for(let i=2; i<=n; i++) r *= i; return r;
+    }
+
+    // Cálculos matemáticos y renderizado
+    function actualizarGrafica() {
+        const dist = document.getElementById('distSelect').value;
+        const p1 = parseFloat(document.getElementById('param1').value);
+        const p2 = parseFloat(document.getElementById('param2').value);
+        
+        document.getElementById('val-param1').innerText = p1;
+        if(document.getElementById('val-param2')) document.getElementById('val-param2').innerText = p2;
+
+        let labels = [], datos = [], tipoGrafica = 'line';
+
+        if (dist === 'normal') {
+            tipoGrafica = 'line';
+            for (let x = p1 - 4*p2; x <= p1 + 4*p2; x += p2/10) {
+                labels.push(x.toFixed(2));
+                let fx = (1 / (p2 * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - p1) / p2, 2));
+                datos.push(fx);
+            }
+        } else if (dist === 'uniforme') {
+            tipoGrafica = 'line';
+            let step = (p2 - p1) / 20;
+            // Un poco antes de 'a'
+            labels.push((p1 - 1).toFixed(2)); datos.push(0);
+            // Entre 'a' y 'b'
+            for (let x = p1; x <= p2; x += step) {
+                labels.push(x.toFixed(2));
+                datos.push(1 / (p2 - p1));
+            }
+            // Un poco después de 'b'
+            labels.push((p2 + 1).toFixed(2)); datos.push(0);
+        } else if (dist === 'binomial') {
+            tipoGrafica = 'bar';
+            for (let k = 0; k <= p1; k++) {
+                labels.push(k);
+                let combinacion = factorial(p1) / (factorial(k) * factorial(p1 - k));
+                let pk = combinacion * Math.pow(p2, k) * Math.pow(1 - p2, p1 - k);
+                datos.push(pk);
+            }
+        } else if (dist === 'bernoulli') {
+            tipoGrafica = 'bar';
+            labels = ['Fracaso (0)', 'Éxito (1)'];
+            datos = [1 - p1, p1];
+        }
+
+        inicializarGrafica(tipoGrafica, labels, datos);
+    }
+
+    // Arrancar el sistema por primera vez
+    cambiarDistribucion();
+</script>
+</body>
+</html>
