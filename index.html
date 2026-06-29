@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Avanzado de Distribuciones</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 340px;
+            background-color: #ffffff;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+        h2 {
+            font-size: 20px;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+            border-bottom: 2px solid #4F46E5;
+            padding-bottom: 10px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        label { font-size: 13px; font-weight: 600; color: #4b5563; }
+        select, input[type="range"], input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: #fff;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #4F46E5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        .prob-box {
+            background-color: #EEF2FF;
+            border: 1px solid #C7D2FE;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 15px;
+            color: #3730A3;
+            margin-top: 5px;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 25px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: #f8fafc;
+            overflow-y: auto;
+            width: 100%;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 950px;
+            height: 420px;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .table-container {
+            width: 100%;
+            max-width: 950px;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            text-align: center;
+        }
+        th {
+            background-color: #f3f4f6;
+            color: #374151;
+            padding: 10px;
+            font-weight: 600;
+            border-bottom: 2px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+        }
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+        }
+        tr.highlighted-row {
+            background-color: #FFEDD5 !important;
+            color: #c2410c;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; overflow-y: auto; height: auto; }
+            .sidebar { width: 100%; max-height: 45vh; padding: 15px; }
+            .main-content { padding: 15px; height: auto; }
+            .chart-container { height: 320px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>Distribuciones</h2>
+        
+        <div class="control-group">
+            <label for="distSelect">Selecciona Modelo:</label>
+            <select id="distSelect" onchange="cambiarDistribucion()">
+                <option value="normal" selected>Normal (Gaussiana)</option>
+                <option value="binomial">Binomial</option>
+                <option value="uniforme">Uniforme Continua</option>
+                <option value="bernoulli">Bernoulli</option>
+            </select>
+        </div>
+
+        <div id="controles-calculo">
+            <div id="campos-parametros"></div>
+            
+            <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;">
+            <label style="color: #111827; font-size: 14px; margin-bottom: 8px; display: block;">📍 Find Probability (Calcular):</label>
+            
+            <div class="control-group">
+                <label for="probType">Tipo de Región:</label>
+                <select id="probType" onchange="toggleProbInputs()">
+                    <option value="exact">Exacta: P(X = k)</option>
+                    <option value="lower">Izquierda</option>
+                    <option value="upper">Derecha</option>
+                    <option value="between" selected>Intervalo</option>
+                    <option value="tails">Extremos</option>
+                </select>
+            </div>
+
+            <div class="control-group" id="input-x-container" style="display: none;">
+                <label id="label-single" for="val-x">Valor de k:</label>
+                <input type="number" id="val-x" value="1" step="any" oninput="actualizarGrafica()">
+            </div>
+
+            <div id="input-between-container" style="display: flex; gap: 10px;">
+                <div class="control-group" style="flex: 1;">
+                    <label id="label-a-x1" for="val-a">Valor a:</label>
+                    <input type="number" id="val-a" value="-1" step="any" oninput="actualizarGrafica()">
+                </div>
+                <div class="control-group" style="flex: 1;">
+                    <label id="label-b-x2" for="val-b">Valor b:</label>
+                    <input type="number" id="val-b" value="1" step="any" oninput="actualizarGrafica()">
+                </div>
+            </div>
+
+            <div class="prob-box" id="resultado-probabilidad">
+                P(-1.00 ≤ Z ≤ 1.00) = 0.6827
+            </div>
+        </div>
+
+        <div id="controls-uniforme" class="dist-controls" style="display:none;">
+            <div class="control-group">
+                <label for="param-uni-a">Mínimo (a):</label>
+                <input type="range" id="param-uni-a" min="-10" max="4" step="1" value="0" oninput="actualizarGrafica()">
+            </div>
+            <div class="control-group">
+                <label for="param-uni-b">Máximo (b):</label>
+                <input type="range" id="param-uni-b" min="5" max="20" step="1" value="10" oninput="actualizarGrafica()">
+            </div>
+        </div>
+
+        <div id="controls-bernoulli" class="dist-controls" style="display:none;">
+            <div class="control-group">
+                <label for="param-bp">Probabilidad (p):</label>
+                <input type="range" id="param-bp" min="0" max="1" step="0.05" value="0.5" oninput="actualizarGrafica()">
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="chart-container">
+            <canvas id="canvasGrafica"></canvas>
+        </div>
+        
+        <div class="table-container" id="contenedorTablaBinomial" style="display: none;">
+            <table id="tablaBinomial">
+                <thead>
+                    <tr>
+                        <th>x</th>
+                        <th>P(X = x)</th>
+                        <th>P(X ≤ x)</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoTablaBinomial"></tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+    let miGrafica;
+    const ctx = document.getElementById('canvasGrafica').getContext('2d');
+
+    let estadoNormal = { mu: 0, sigma: 1, x: 1, a: -1, b: 1, tipo: 'between' };
+    let estadoBinomial = { n: 6, p: 0.5, x: 3, a: 2, b: 4, tipo: 'exact' };
+
+    function cambiarDistribucion() {
+        const dist = document.getElementById('distSelect').value;
+        const contenedorParametros = document.getElementById('campos-parametros');
+        const calcContainer = document.getElementById('controles-calculo');
+        const selectorRegiones = document.getElementById('probType');
+        
+        document.querySelectorAll('.dist-controls').forEach(el => el.style.display = 'none');
+        calcContainer.style.display = 'none';
+        document.getElementById('contenedorTablaBinomial').style.display = 'none';
+
+        if (dist === 'normal') {
+            calcContainer.style.display = 'block';
+            selectorRegiones.innerHTML = `
+                <option value="lower">Izquierda</option>
+                <option value="upper">Derecha</option>
+                <option value="between">Intervalo</option>
+                <option value="tails">Extremos</option>
+            `;
+            selectorRegiones.value = estadoNormal.tipo === 'exact' ? 'between' : estadoNormal.tipo;
+
+            contenedorParametros.innerHTML = `
+                <div class="control-group">
+                    <label for="param-mu">Media (μ):</label>
+                    <input type="number" id="param-mu" value="${estadoNormal.mu}" step="any" oninput="actualizarGrafica()">
+                </div>
+                <div class="control-group">
+                    <label for="param-sigma">Desv. Estándar (σ):</label>
+                    <input type="number" id="param-sigma" value="${estadoNormal.sigma}" min="0.001" step="any" oninput="actualizarGrafica()">
+                </div>
+            `;
+            document.getElementById('val-x').value = estadoNormal.x;
+            document.getElementById('val-a').value = estadoNormal.a;
+            document.getElementById('val-b').value = estadoNormal.b;
+        } 
+        else if (dist === 'binomial') {
+            calcContainer.style.display = 'block';
+            document.getElementById('contenedorTablaBinomial').style.display = 'block';
+            selectorRegiones.innerHTML = `
+                <option value="exact">Exacta: P(X = k)</option>
+                <option value="lower">Izquierda: P(X ≤ k)</option>
+                <option value="upper">Derecha: P(X ≥ k)</option>
+                <option value="between">Intervalo</option>
+                <option value="tails">Extremos</option>
+            `;
+            selectorRegiones.value = estadoBinomial.tipo;
+
+            contenedorParametros.innerHTML = `
+                <div class="control-group">
+                    <label for="param-n">Número de Ensayos (n):</label>
+                    <input type="number" id="param-n" value="${estadoBinomial.n}" min="1" max="500" step="1" oninput="actualizarGrafica()">
+                </div>
+                <div class="control-group">
+                    <label for="param-p">Probabilidad de Éxito (p):</label>
+                    <input type="number" id="param-p" value="${estadoBinomial.p}" min="0" max="1" step="0.0001" oninput="actualizarGrafica()">
+                </div>
+            `;
+            document.getElementById('val-x').value = estadoBinomial.x;
+            document.getElementById('val-a').value = estadoBinomial.a;
+            document.getElementById('val-b').value = estadoBinomial.b;
+        } 
+        else {
+            document.getElementById('controls-' + dist).style.display = 'block';
+        }
+
+        toggleProbInputs();
+    }
+
+    function guardarEstado() {
+        const dist = document.getElementById('distSelect').value;
+        const tipoReg = document.getElementById('probType').value;
+        
+        const elMu = document.getElementById('param-mu');
+        const elSigma = document.getElementById('param-sigma');
+        const elN = document.getElementById('param-n');
+        const elP = document.getElementById('param-p');
+        
+        if (dist === 'normal' && elMu && elSigma) {
+            estadoNormal.mu = parseFloat(elMu.value) || 0;
+            estadoNormal.sigma = parseFloat(elSigma.value) || 1;
+            estadoNormal.x = parseFloat(document.getElementById('val-x').value) || 0;
+            estadoNormal.a = parseFloat(document.getElementById('val-a').value) || 0;
+            estadoNormal.b = parseFloat(document.getElementById('val-b').value) || 0;
+            estadoNormal.tipo = tipoReg;
+        } else if (dist === 'binomial' && elN && elP) {
+            estadoBinomial.n = parseInt(elN.value) || 6;
+            estadoBinomial.p = parseFloat(elP.value) || 0.5;
+            estadoBinomial.x = parseFloat(document.getElementById('val-x').value) || 0;
+            estadoBinomial.a = parseFloat(document.getElementById('val-a').value) || 0;
+            estadoBinomial.b = parseFloat(document.getElementById('val-b').value) || 0;
+            estadoBinomial.tipo = tipoReg;
+        }
+    }
+
+    function toggleProbInputs() {
+        const dist = document.getElementById('distSelect').value;
+        if (dist !== 'normal' && dist !== 'binomial') {
+            actualizarGrafica();
+            return;
+        }
+
+        const type = document.getElementById('probType').value;
+        const containerSingle = document.getElementById('input-x-container');
+        const containerDouble = document.getElementById('input-between-container');
+        const labelSingle = document.getElementById('label-single');
+        const labelA = document.getElementById('label-a-x1');
+        const labelB = document.getElementById('label-b-x2');
+
+        const elMu = document.getElementById('param-mu');
+        const elSigma = document.getElementById('param-sigma');
+        const muVal = elMu ? parseFloat(elMu.value) : estadoNormal.mu;
+        const sigmaVal = elSigma ? parseFloat(elSigma.value) : estadoNormal.sigma;
+
+        const vLetra = (dist === 'normal' && muVal === 0 && sigmaVal === 1) ? 'Z' : 'X';
+        const vLetraMin = vLetra.toLowerCase();
+
+        if (type === 'lower' || type === 'upper' || type === 'exact') {
+            containerSingle.style.display = 'block';
+            containerDouble.style.display = 'none';
+            labelSingle.innerText = type === 'exact' ? `Valor de k:` : `Valor de ${vLetraMin}:`;
+        } else {
+            containerSingle.style.display = 'none';
+            containerDouble.style.display = 'flex';
+            if (type === 'tails') {
+                labelA.innerText = `Valor ${vLetraMin}1:`;
+                labelB.innerText = `Valor ${vLetraMin}2:`;
+            } else {
+                labelA.innerText = "Valor a:";
+                labelB.innerText = "Valor b:";
+            }
+        }
+        actualizarGrafica();
+    }
+
+    function factorial(n) {
+        if (n <= 1) return 1;
+        let r = 1; 
+        for (let i = 2; i <= n; i++) { r *= i; } 
+        return r;
+    }
+
+    function combinacion(n, k) {
+        if (k < 0 || k > n) return 0;
+        return factorial(n) / (factorial(k) * factorial(n - k));
+    }
+
+    function pmfBinomial(k, n, p) {
+        return combinacion(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+    }
+
+    function cdfNormal(x, mu, sigma) {
+        let z = (x - mu) / sigma;
+        let t = 1.0 / (1.0 + 0.2316419 * Math.abs(z));
+        let d = 0.3989423 * Math.exp(-z * z / 2.0);
+        let p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+        if (z > 0) p = 1.0 - p;
+        return p;
+    }
+
+    const pluginLineasVerticales = {
+        id: 'pluginLineasVerticales',
+        afterDatasetsDraw(chart) {
+            const dist = document.getElementById('distSelect').value;
+            if (dist !== 'normal') return;
+
+            const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+            const type = document.getElementById('probType').value;
+
+            let valoresADibujar = [];
+            if (type === 'between' || type === 'tails') {
+                valoresADibujar.push(parseFloat(document.getElementById('val-a').value));
+                valoresADibujar.push(parseFloat(document.getElementById('val-b').value));
+            } else {
+                valoresADibujar.push(parseFloat(document.getElementById('val-x').value));
+            }
+
+            ctx.save();
+            valoresADibujar.forEach(val => {
+                if (isNaN(val)) return;
+                const xPixel = x.getPixelForValue(val);
+                if (xPixel < chart.chartArea.left || xPixel > chart.chartArea.right) return;
+
+                ctx.beginPath(); ctx.lineWidth = 1.8; ctx.strokeStyle = '#EA580C'; ctx.setLineDash([5, 5]);       
+                ctx.moveTo(xPixel, top); ctx.lineTo(xPixel, bottom); ctx.stroke();
+
+                ctx.setLineDash([]); ctx.fillStyle = '#EA580C'; ctx.font = 'bold 13px "Segoe UI", sans-serif';
+                ctx.textAlign = 'left'; ctx.textBaseline = 'top';     
+                ctx.fillText(val.toFixed(2), xPixel + 6, top + 5);
+            });
+            ctx.restore();
+        }
+    };
+
+    function actualizarGrafica() {
+        guardarEstado();
+        const dist = document.getElementById('distSelect').value;
+        const type = document.getElementById('probType').value;
+
+        let labels = [], datosCurvaCompleta = [];
+        let datosSombreadoA = [], datosSombreadoB = []; // Dos bloques separados de sombreado
+        let coloresBarras = [];
+        let tipoGrafica = 'line';
+        let datasets = [];
+        let opcionesEjes = {};
+        let pCalculada = 0;
+
+        let valX = parseFloat(document.getElementById('val-x').value) || 0;
+        let valA = parseFloat(document.getElementById('val-a').value) || 0;
+        let valB = parseFloat(document.getElementById('val-b').value) || 0;
+
+        // ================= DISTRIBUCIÓN NORMAL =================
+        if (dist === 'normal') {
+            tipoGrafica = 'line';
+            const elMu = document.getElementById('param-mu');
+            const elSigma = document.getElementById('param-sigma');
+            
+            let mu = elMu ? (parseFloat(elMu.value) || 0) : estadoNormal.mu;
+            let sigma = elSigma ? (parseFloat(elSigma.value) || 1) : estadoNormal.sigma;
+            
+            let inicio = mu - 4 * sigma; let fin = mu + 4 * sigma;
+            let pasos = 250;
+            
+            const getFx = (val) => (1 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((val - mu) / sigma, 2));
+
+            let puntosEjeX = [];
+            for (let i = 0; i <= pasos; i++) {
+                puntosEjeX.push(inicio + (i * (fin - inicio)) / pasos);
+            }
+            
+            if (type === 'lower' || type === 'upper') {
+                if (valX > inicio && valX < fin) puntosEjeX.push(valX);
+            } else {
+                if (valA > inicio && valA < fin) puntosEjeX.push(valA);
+                if (valB > inicio && valB < fin) puntosEjeX.push(valB);
+            }
+            puntosEjeX.sort((a, b) => a - b);
+
+            puntosEjeX.forEach(x => {
+                let y = getFx(x);
+                datosCurvaCompleta.push({ x: x, y: y });
+
+                // Lógica de segmentación del sombreado limpio en bloques independientes
+                if (type === 'lower' && x <= valX) datosSombreadoA.push({ x: x, y: y });
+                else if (type === 'upper' && x >= valX) datosSombreadoA.push({ x: x, y: y });
+                else if (type === 'between' && x >= valA && x <= valB) datosSombreadoA.push({ x: x, y: y });
+                else if (type === 'tails') {
+                    if (x <= valA) datosSombreadoA.push({ x: x, y: y }); // Extremo Izquierdo
+                    if (x >= valB) datosSombreadoB.push({ x: x, y: y }); // Extremo Derecho (Set B)
+                }
+            });
+
+            const vLetra = (mu === 0 && sigma === 1) ? 'Z' : 'X';
+
+            if (type === 'lower') {
+                pCalculada = cdfNormal(valX, mu, sigma);
+                document.getElementById('resultado-probabilidad').innerText = `P(${vLetra} ≤ ${valX.toFixed(2)}) = ${pCalculada.toFixed(4)}`;
+            } 
+            else if (type === 'upper') {
+                pCalculada = 1 - cdfNormal(valX, mu, sigma);
+                document.getElementById('resultado-probabilidad').innerText = `P(${vLetra} ≥ ${valX.toFixed(2)}) = ${pCalculada.toFixed(4)}`;
+            } 
+            else if (type === 'between') {
+                pCalculada = cdfNormal(valB, mu, sigma) - cdfNormal(valA, mu, sigma);
+                if (pCalculada < 0) pCalculada = 0;
+                document.getElementById('resultado-probabilidad').innerText = `P(${valA.toFixed(2)} ≤ ${vLetra} ≤ ${valB.toFixed(2)}) = ${pCalculada.toFixed(4)}`;
+            } 
+            else if (type === 'tails') {
+                pCalculada = cdfNormal(valA, mu, sigma) + (1 - cdfNormal(valB, mu, sigma));
+                document.getElementById('resultado-probabilidad').innerText = `P(${vLetra} < ${valA.toFixed(2)}) + P(${vLetra} > ${valB.toFixed(2)}) = ${Math.min(1, pCalculada).toFixed(4)}`;
+            }
+
+            let marcasFijasEjeX = [mu - 3 * sigma, mu - 2 * sigma, mu - 1 * sigma, mu, mu + 1 * sigma, mu + 2 * sigma, mu + 3 * sigma];
+            opcionesEjes = {
+                x: { 
+                    type: 'linear', min: inicio, max: fin, grid: { display: false },
+                    afterBuildTicks: scale => scale.ticks = marcasFijasEjeX.map(v => ({ value: v })),
+                    ticks: { callback: value => Math.abs(value - mu) < (sigma * 0.005) ? value.toFixed(2) + " (μ)" : value.toFixed(2) }
+                },
+                y: { beginAtZero: true, grid: { display: false } }
+            };
+
+            datasets = [
+                { data: datosSombreadoA, borderColor: 'transparent', backgroundColor: 'rgba(79, 70, 229, 0.45)', fill: 'origin', pointRadius: 0, tension: 0 },
+                { data: datosSombreadoB, borderColor: 'transparent', backgroundColor: 'rgba(79, 70, 229, 0.45)', fill: 'origin', pointRadius: 0, tension: 0 },
+                { data: datosCurvaCompleta, borderColor: '#4F46E5', borderWidth: 2.5, fill: false, pointRadius: 0, tension: 0 }
+            ];
+        } 
+        // ================= DISTRIBUCIÓN BINOMIAL =================
+        else if (dist === 'binomial') {
+            tipoGrafica = 'bar';
+            const elN = document.getElementById('param-n');
+            const elP = document.getElementById('param-p');
+            
+            const n = elN ? (parseInt(elN.value) || 6) : estadoBinomial.n;
+            const p = elP ? (parseFloat(elP.value) || 0.5) : estadoBinomial.p;
+
+            const tbody = document.getElementById('cuerpoTablaBinomial');
+            tbody.innerHTML = ""; 
+
+            pCalculada = 0;
+            let acumulado = 0;
+
+            for (let k = 0; k <= n; k++) {
+                labels.push(k);
+                let pb = pmfBinomial(k, n, p);
+                acumulado += pb;
+                datosCurvaCompleta.push(pb);
+
+                let pertenece = false;
+                if (type === 'exact' && k === Math.round(valX)) { pertenece = true; pCalculada = pb; }
+                else if (type === 'lower' && k <= valX) { pertenece = true; pCalculada += pb; }
+                else if (type === 'upper' && k >= valX) { pertenece = true; pCalculada += pb; }
+                else if (type === 'between' && k >= valA && k <= valB) { pertenece = true; pCalculada += pb; }
+                else if (type === 'tails' && (k < valA || k > valB)) { pertenece = true; pCalculada += pb; }
+
+                coloresBarras.push(pertenece ? 'rgba(234, 88, 12, 0.85)' : 'rgba(79, 70, 229, 0.45)');
+
+                const fila = document.createElement('tr');
+                if (pertenece) fila.className = 'highlighted-row';
+                
+                fila.innerHTML = `
+                    <td>${k}</td>
+                    <td>${pb.toFixed(4)}</td>
+                    <td>${acumulado.toFixed(4)}</td>
+                `;
+                tbody.appendChild(fila);
+            }
+
+            if (type === 'exact') document.getElementById('resultado-probabilidad').innerText = `P(X = ${Math.round(valX)}) = ${pCalculada.toFixed(4)}`;
+            else if (type === 'lower') document.getElementById('resultado-probabilidad').innerText = `P(X ≤ ${Math.floor(valX)}) = ${pCalculada.toFixed(4)}`;
+            else if (type === 'upper') document.getElementById('resultado-probabilidad').innerText = `P(X ≥ ${Math.ceil(valX)}) = ${pCalculada.toFixed(4)}`;
+            else if (type === 'between') document.getElementById('resultado-probabilidad').innerText = `P(${Math.ceil(valA)} ≤ X ≤ ${Math.floor(valB)}) = ${pCalculada.toFixed(4)}`;
+            else if (type === 'tails') document.getElementById('resultado-probabilidad').innerText = `P(X < ${Math.ceil(valA)}) + P(X > ${Math.floor(valB)}) = ${pCalculada.toFixed(4)}`;
+
+            datasets = [{ data: datosCurvaCompleta, backgroundColor: coloresBarras, borderWidth: 0, barPercentage: 0.85 }];
+            opcionesEjes = { 
+                x: { grid: { display: false }, ticks: { maxRotation: 0 } },
+                y: { beginAtZero: true, grid: { display: false } }
+            };
+        } 
+        // ================= DISTRIBUCIÓN UNIFORME =================
+        else if (dist === 'uniforme') {
+            tipoGrafica = 'line';
+            const a = parseFloat(document.getElementById('param-uni-a').value);
+            const b = parseFloat(document.getElementById('param-uni-b').value);
+            if (a >= b) { document.getElementById('param-uni-b').value = a + 1; actualizarGrafica(); return; }
+
+            labels = [a - 2, a, a, b, b, b + 2];
+            datosCurvaCompleta = [0, 0, 1 / (b - a), 1 / (b - a), 0, 0];
+            datasets = [{ data: datosCurvaCompleta, borderColor: '#4F46E5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0, pointRadius: 0 }];
+            opcionesEjes = { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { display: false } } };
+        } 
+        // ================= DISTRIBUCIÓN BERNOULLI =================
+        else if (dist === 'bernoulli') {
+            tipoGrafica = 'bar';
+            const p = parseFloat(document.getElementById('param-bp').value);
+            labels = ['Fracaso (0)', 'Éxito (1)'];
+            datosCurvaCompleta = [1 - p, p];
+            datasets = [{ data: datosCurvaCompleta, backgroundColor: '#4F46E5' }];
+            opcionesEjes = { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { display: false } } };
+        }
+
+        if (miGrafica) miGrafica.destroy();
+        
+        miGrafica = new Chart(ctx, {
+            type: tipoGrafica,
+            data: { labels: dist !== 'normal' ? labels : undefined, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false, 
+                plugins: { legend: { display: false } }, scales: opcionesEjes
+            },
+            plugins: [pluginLineasVerticales] 
+        });
+    }
+
+    // Inicialización al vuelo controlada
+    cambiarDistribucion();
+</script>
+</body>
+</html>
